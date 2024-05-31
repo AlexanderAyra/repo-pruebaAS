@@ -16,4 +16,10 @@ jobs:
         run: echo "${{ secrets.varEntorno }}" > .env
 
       - name: Display Dockerfile content
-        run: cat .env
+        run: |
+          if [ -s Dockerfile ]; then
+            echo "Dockerfile created successfully"
+          else
+            echo "Dockerfile is empty or not created"
+            exit 1
+          fi
