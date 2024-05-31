@@ -17,9 +17,9 @@ jobs:
 
       - name: Display Dockerfile content
         run: |
-          if [ -s Dockerfile ]; then
-            echo "Dockerfile created successfully"
+          if [ -s .env ]; then
+            echo ".env created successfully"
           else
-            echo "Dockerfile is empty or not created"
+            echo ".env is empty or not created"
             exit 1
           fi
