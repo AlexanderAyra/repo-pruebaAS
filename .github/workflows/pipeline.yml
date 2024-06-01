@@ -14,4 +14,4 @@ jobs:
 
       - name: Save Docker image as tar file
         run: |
-          echo "Repository name: ${{ github.actor }}"
+          echo "Nombre del repositorio: $(basename ${{ github.repository }})"
