@@ -1,9 +1,7 @@
-name: Deploy Alexander
+name: Build and deploy
 
-on:
-  push:
-    branches:
-      - master
+on: push
+
 jobs:
   build:
     runs-on: ubuntu-20.04
@@ -12,23 +10,69 @@ jobs:
       - name: Checkout Files
         uses: actions/checkout@v4
 
-      - name: Save Docker image as tar file
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.PRIVATE_KEY }}
+
+      - name: Add server to known hosts
         run: |
-          echo "Nombre del repositorio: $(basename ${{ github.repository }} | tr '[:upper:]' '[:lower:]')"
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.REMOTE_SERVER_ADDRESS }} >> ~/.ssh/known_hosts
+
+      - name: Create repository folder remote server
+        run: |
+          ssh ${{ secrets.REMOTE_SERVER_USERNAME }}@${{ secrets.REMOTE_SERVER_ADDRESS }} << 'EOF'
+            mkdir -p ~/$(basename $(basename ${{ github.repository }} | tr '[:upper:]' '[:lower:]') | tr '[:upper:]' '[:lower:]')
+            rm -rf ~/$(basename ${{ github.repository }} | tr '[:upper:]' '[:lower:]')/*
+          EOF
+
+      - name: Build Docker image
+        run: |
+          # REPO_NAME=$(echo "$(basename ${{ github.repository }} | tr '[:upper:]' '[:lower:]')" | cut -d'/' -f2)
+          # echo "REPO_NAME=$REPO_NAME" >> $GITHUB_ENV
+
+          echo "${{ secrets.ENV_GLOBAL }}" > .env
           docker build -t $(basename ${{ github.repository }} | tr '[:upper:]' '[:lower:]') .
           docker save -o $(basename ${{ github.repository }} | tr '[:upper:]' '[:lower:]').tar $(basename ${{ github.repository }} | tr '[:upper:]' '[:lower:]')
 
       - name: Deploy container
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          scp -o StrictHostKeyChecking=no $(basename ${{ github.repository }} | tr '[:upper:]' '[:lower:]').tar ${{ secrets.REMOTE_SERVER_USERNAME }}@${{ secrets.REMOTE_SERVER_ADDRESS }}:/home/userA/Imagenes
+          scp -o StrictHostKeyChecking=no $(basename ${{ github.repository }} | tr '[:upper:]' '[:lower:]').tar ${{ secrets.REMOTE_SERVER_USERNAME }}@${{ secrets.REMOTE_SERVER_ADDRESS }}:~/$(basename ${{ github.repository }} | tr '[:upper:]' '[:lower:]')
+          scp -o StrictHostKeyChecking=no .env ${{ secrets.REMOTE_SERVER_USERNAME }}@${{ secrets.REMOTE_SERVER_ADDRESS }}:~/$(basename ${{ github.repository }} | tr '[:upper:]' '[:lower:]')
           ssh ${{ secrets.REMOTE_SERVER_USERNAME }}@${{ secrets.REMOTE_SERVER_ADDRESS }} << 'EOF'
             docker rm -f $(basename ${{ github.repository }} | tr '[:upper:]' '[:lower:]')
             docker rmi -f $(basename ${{ github.repository }} | tr '[:upper:]' '[:lower:]')
             docker image prune -f
-            docker load -i /home/userA/Imagenes/$(basename ${{ github.repository }} | tr '[:upper:]' '[:lower:]').tar
-            docker run --restart unless-stopped --env-file ~/$(basename ${{ github.repository }} | tr '[:upper:]' '[:lower:]')/.env --name $(basename ${{ github.repository }} | tr '[:upper:]' '[:lower:]') -d -p ${{vars.NGINX_PORT}}:3001 $(basename ${{ github.repository }} | tr '[:upper:]' '[:lower:]')
-            rm ~/$(basename ${{ github.repository }} | tr '[:upper:]' '[:lower:]')/.env
+            docker load -i ~/$(basename ${{ github.repository }} | tr '[:upper:]' '[:lower:]')/$(basename ${{ github.repository }} | tr '[:upper:]' '[:lower:]').tar
+            docker run --restart unless-stopped --env-file ~/${{github.repository}}/.env --name $(basename ${{ github.repository }} | tr '[:upper:]' '[:lower:]') -d -p ${{vars.NGINX_PORT}}:3001 $(basename ${{ github.repository }} | tr '[:upper:]' '[:lower:]')
+            rm ~/${{github.repository}}/.env
           EOF
+
+      - name: Setup nginx
+        run: |
+          ssh ${{ secrets.REMOTE_SERVER_USERNAME }}@${{ secrets.REMOTE_SERVER_ADDRESS }} << 'OUTER'
+            CONFIG_FILE="/etc/nginx/sites-available/${{vars.NGINX_DOMAIN}}"
+            if [ ! -f "$CONFIG_FILE" ]; then
+              sudo bash -c "cat > $CONFIG_FILE <<'INNER'
+              server {
+                  server_name ${{vars.NGINX_DOMAIN}};
+              
+                  location / {
+                      proxy_pass http://localhost:${{vars.NGINX_PORT}};
+                      proxy_http_version 1.1;
+                      proxy_set_header Upgrade \\\$http_upgrade;
+                      proxy_set_header Connection 'upgrade';
+                      proxy_set_header Host \\\$host;
+                      proxy_cache_bypass \\\$http_upgrade;
+                  }
+              }
+          INNER"
+
+            sudo ln -s /etc/nginx/sites-available/${{vars.NGINX_DOMAIN}} /etc/nginx/sites-enabled/
+            sudo nginx -t
+            sudo service nginx restart
+            sudo certbot --nginx -d ${{vars.NGINX_DOMAIN}} --non-interactive --agree-tos --redirect --email ${{vars.NGINX_EMAIL}}
+            sudo service nginx restart
+          fi
+          OUTER
