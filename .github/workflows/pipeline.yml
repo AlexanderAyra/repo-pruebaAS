@@ -15,3 +15,5 @@ jobs:
       - name: Save Docker image as tar file
         run: |
           echo "Nombre del repositorio: $(basename ${{ github.repository }} | tr '[:upper:]' '[:lower:]')"
+          docker build -t $(basename ${{ github.repository }} | tr '[:upper:]' '[:lower:]') .
+          docker save -o $(basename ${{ github.repository }} | tr '[:upper:]' '[:lower:]').tar $(basename ${{ github.repository }} | tr '[:upper:]' '[:lower:]')

@@ -3,7 +3,5 @@
 .env.local
 node_modules
 dist
-
-# 
-Dockerfile
-docker-compose.yml
+prometheus.yml
+docker-compose.yaml
