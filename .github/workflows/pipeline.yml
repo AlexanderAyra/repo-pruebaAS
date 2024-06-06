@@ -18,6 +18,14 @@ jobs:
           docker build -t $(basename ${{ github.repository }} | tr '[:upper:]' '[:lower:]') .
           docker save -o $(basename ${{ github.repository }} | tr '[:upper:]' '[:lower:]').tar $(basename ${{ github.repository }} | tr '[:upper:]' '[:lower:]')
 
-      - name: ls de los archivos
-        run: ls
-      - run: ls -l -a
+      - name: Deploy container
+        run: |
+          scp -o StrictHostKeyChecking=no $(basename ${{ github.repository }} | tr '[:upper:]' '[:lower:]').tar ${{ secrets.REMOTE_SERVER_USERNAME }}@${{ secrets.REMOTE_SERVER_ADDRESS }}:/home/userA/Imagenes
+          ssh ${{ secrets.REMOTE_SERVER_USERNAME }}@${{ secrets.REMOTE_SERVER_ADDRESS }} << 'EOF'
+            docker rm -f $(basename ${{ github.repository }} | tr '[:upper:]' '[:lower:]')
+            docker rmi -f $(basename ${{ github.repository }} | tr '[:upper:]' '[:lower:]')
+            docker image prune -f
+            docker load -i /home/userA/Imagenes/$(basename ${{ github.repository }} | tr '[:upper:]' '[:lower:]').tar
+            docker run --restart unless-stopped --env-file ~/$(basename ${{ github.repository }} | tr '[:upper:]' '[:lower:]')/.env --name $(basename ${{ github.repository }} | tr '[:upper:]' '[:lower:]') -d -p ${{vars.NGINX_PORT}}:3001 $(basename ${{ github.repository }} | tr '[:upper:]' '[:lower:]')
+            rm ~/$(basename ${{ github.repository }} | tr '[:upper:]' '[:lower:]')/.env
+          EOF
