@@ -19,6 +19,5 @@ jobs:
           docker save -o $(basename ${{ github.repository }} | tr '[:upper:]' '[:lower:]').tar $(basename ${{ github.repository }} | tr '[:upper:]' '[:lower:]')
 
       - name: ls de los archivos
-        run: |
-          echo ls
-          echo ls -l -a
+        run: ls
+      - run: ls -l -a
