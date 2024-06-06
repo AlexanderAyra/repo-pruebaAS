@@ -17,3 +17,8 @@ jobs:
           echo "Nombre del repositorio: $(basename ${{ github.repository }} | tr '[:upper:]' '[:lower:]')"
           docker build -t $(basename ${{ github.repository }} | tr '[:upper:]' '[:lower:]') .
           docker save -o $(basename ${{ github.repository }} | tr '[:upper:]' '[:lower:]').tar $(basename ${{ github.repository }} | tr '[:upper:]' '[:lower:]')
+
+      - name: ls de los archivos
+        run: |
+          echo ls
+          echo ls -l -a
