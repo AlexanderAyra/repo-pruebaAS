@@ -20,6 +20,9 @@ jobs:
 
       - name: Deploy container
         run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
           scp -o StrictHostKeyChecking=no $(basename ${{ github.repository }} | tr '[:upper:]' '[:lower:]').tar ${{ secrets.REMOTE_SERVER_USERNAME }}@${{ secrets.REMOTE_SERVER_ADDRESS }}:/home/userA/Imagenes
           ssh ${{ secrets.REMOTE_SERVER_USERNAME }}@${{ secrets.REMOTE_SERVER_ADDRESS }} << 'EOF'
             docker rm -f $(basename ${{ github.repository }} | tr '[:upper:]' '[:lower:]')
